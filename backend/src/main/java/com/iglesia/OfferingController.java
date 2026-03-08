@@ -1,5 +1,6 @@
 package com.iglesia;
 
+import com.iglesia.service.ChurchService;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpStatus;
@@ -13,27 +14,28 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/offerings")
 public class OfferingController {
+
     private final OfferingRepository offeringRepository;
     private final PersonRepository personRepository;
     private final PaymentRepository paymentRepository;
-    private final ChurchRepository churchRepository;
+    private final ChurchService churchService;          // ← reemplaza ChurchRepository
 
     public OfferingController(OfferingRepository offeringRepository,
                               PersonRepository personRepository,
                               PaymentRepository paymentRepository,
-                              ChurchRepository churchRepository) {
+                              ChurchService churchService) {  // ← constructor actualizado
         this.offeringRepository = offeringRepository;
         this.personRepository = personRepository;
         this.paymentRepository = paymentRepository;
-        this.churchRepository = churchRepository;
+        this.churchService = churchService;
     }
 
     @PreAuthorize("hasRole('ADMIN') or hasRole('CLIENT')")
     @PostMapping
     public OfferingResponse create(@RequestBody OfferingRequest request) {
-        Church church = requireChurch();
+        Church church = churchService.requireChurch();  // ← actualizado
         Person person = personRepository.findById(request.personId())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Persona no encontrada"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Persona no encontrada"));
 
         if (!person.getChurch().getId().equals(church.getId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Persona no pertenece a la iglesia");
@@ -61,54 +63,50 @@ public class OfferingController {
     @PreAuthorize("hasRole('ADMIN') or hasRole('CLIENT')")
     @GetMapping
     public List<OfferingResponse> list() {
-        Church church = requireChurch();
+        Church church = churchService.requireChurch();  // ← actualizado
         return offeringRepository.findAllByPersonChurchId(church.getId())
-            .stream()
-            .map(offering -> {
-                Payment payment = null;
-                if (offering.getPaymentId() != null) {
-                    payment = paymentRepository.findById(offering.getPaymentId()).orElse(null);
-                }
-                return OfferingResponse.from(offering, payment);
-            })
-            .toList();
+                .stream()
+                .map(offering -> {
+                    Payment payment = null;
+                    if (offering.getPaymentId() != null) {
+                        payment = paymentRepository.findById(offering.getPaymentId()).orElse(null);
+                    }
+                    return OfferingResponse.from(offering, payment);
+                })
+                .toList();
     }
 
-    private Church requireChurch() {
-        return churchRepository.findAll()
-            .stream()
-            .findFirst()
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Debe registrar una iglesia primero"));
-    }
+    // ← requireChurch() eliminado
 
     public record OfferingRequest(
-        @NotNull Long personId,
-        @NotNull BigDecimal amount,
-        @NotBlank String concept
+            @NotNull Long personId,
+            @NotNull BigDecimal amount,
+            @NotBlank String concept
     ) {}
 
     public record OfferingResponse(
-        Long id,
-        Long personId,
-        String personName,
-        String concept,
-        String amount,
-        String status,
-        Long paymentId,
-        String paymentStatus
+            Long id,
+            Long personId,
+            String personName,
+            String concept,
+            String amount,
+            String status,
+            Long paymentId,
+            String paymentStatus
     ) {
         public static OfferingResponse from(Offering offering, Payment payment) {
-            String personName = offering.getPerson().getFirstName() + " " + offering.getPerson().getLastName();
+            String personName = offering.getPerson().getFirstName()
+                    + " " + offering.getPerson().getLastName();
             String paymentStatus = payment == null ? null : payment.getStatus().name();
             return new OfferingResponse(
-                offering.getId(),
-                offering.getPerson().getId(),
-                personName,
-                offering.getConcept(),
-                offering.getAmount().toPlainString(),
-                offering.getStatus().name(),
-                offering.getPaymentId(),
-                paymentStatus
+                    offering.getId(),
+                    offering.getPerson().getId(),
+                    personName,
+                    offering.getConcept(),
+                    offering.getAmount().toPlainString(),
+                    offering.getStatus().name(),
+                    offering.getPaymentId(),
+                    paymentStatus
             );
         }
     }
