@@ -1,5 +1,6 @@
 package com.iglesia;
 
+import com.iglesia.dto.EnrollmentResponse;     
 import com.iglesia.service.ChurchService;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpStatus;
@@ -17,13 +18,13 @@ public class EnrollmentController {
     private final PersonRepository personRepository;
     private final CourseRepository courseRepository;
     private final PaymentRepository paymentRepository;
-    private final ChurchService churchService;          // ← reemplaza ChurchRepository
+    private final ChurchService churchService;
 
     public EnrollmentController(EnrollmentRepository enrollmentRepository,
                                 PersonRepository personRepository,
                                 CourseRepository courseRepository,
                                 PaymentRepository paymentRepository,
-                                ChurchService churchService) {  // ← constructor actualizado
+                                ChurchService churchService) {
         this.enrollmentRepository = enrollmentRepository;
         this.personRepository = personRepository;
         this.courseRepository = courseRepository;
@@ -34,7 +35,7 @@ public class EnrollmentController {
     @PreAuthorize("hasRole('ADMIN') or hasRole('CLIENT')")
     @PostMapping
     public EnrollmentResponse create(@RequestBody EnrollmentRequest request) {
-        Church church = churchService.requireChurch();  // ← actualizado
+        Church church = churchService.requireChurch();
         Person person = personRepository.findById(request.personId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Persona no encontrada"));
         Course course = courseRepository.findById(request.courseId())
@@ -66,7 +67,7 @@ public class EnrollmentController {
     @PreAuthorize("hasRole('ADMIN') or hasRole('CLIENT')")
     @GetMapping
     public List<EnrollmentResponse> list() {
-        Church church = churchService.requireChurch();  // ← actualizado
+        Church church = churchService.requireChurch();
         return enrollmentRepository.findAllByPersonChurchId(church.getId())
                 .stream()
                 .map(enrollment -> {
@@ -79,37 +80,10 @@ public class EnrollmentController {
                 .toList();
     }
 
-    // ← requireChurch() eliminado
+
 
     public record EnrollmentRequest(
             @NotNull Long personId,
             @NotNull Long courseId
     ) {}
-
-    public record EnrollmentResponse(
-            Long id,
-            Long personId,
-            String personName,
-            Long courseId,
-            String courseName,
-            String status,
-            Long paymentId,
-            String paymentStatus
-    ) {
-        public static EnrollmentResponse from(Enrollment enrollment, Payment payment) {
-            String personName = enrollment.getPerson().getFirstName()
-                    + " " + enrollment.getPerson().getLastName();
-            String paymentStatus = payment == null ? null : payment.getStatus().name();
-            return new EnrollmentResponse(
-                    enrollment.getId(),
-                    enrollment.getPerson().getId(),
-                    personName,
-                    enrollment.getCourse().getId(),
-                    enrollment.getCourse().getName(),
-                    enrollment.getStatus().name(),
-                    enrollment.getPaymentId(),
-                    paymentStatus
-            );
-        }
-    }
 }

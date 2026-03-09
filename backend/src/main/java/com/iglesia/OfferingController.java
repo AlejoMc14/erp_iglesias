@@ -1,5 +1,6 @@
 package com.iglesia;
 
+import com.iglesia.dto.OfferingResponse;       // ← import del DTO externo
 import com.iglesia.service.ChurchService;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -18,12 +19,12 @@ public class OfferingController {
     private final OfferingRepository offeringRepository;
     private final PersonRepository personRepository;
     private final PaymentRepository paymentRepository;
-    private final ChurchService churchService;          // ← reemplaza ChurchRepository
+    private final ChurchService churchService;
 
     public OfferingController(OfferingRepository offeringRepository,
                               PersonRepository personRepository,
                               PaymentRepository paymentRepository,
-                              ChurchService churchService) {  // ← constructor actualizado
+                              ChurchService churchService) {
         this.offeringRepository = offeringRepository;
         this.personRepository = personRepository;
         this.paymentRepository = paymentRepository;
@@ -33,7 +34,7 @@ public class OfferingController {
     @PreAuthorize("hasRole('ADMIN') or hasRole('CLIENT')")
     @PostMapping
     public OfferingResponse create(@RequestBody OfferingRequest request) {
-        Church church = churchService.requireChurch();  // ← actualizado
+        Church church = churchService.requireChurch();
         Person person = personRepository.findById(request.personId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Persona no encontrada"));
 
@@ -63,7 +64,7 @@ public class OfferingController {
     @PreAuthorize("hasRole('ADMIN') or hasRole('CLIENT')")
     @GetMapping
     public List<OfferingResponse> list() {
-        Church church = churchService.requireChurch();  // ← actualizado
+        Church church = churchService.requireChurch();
         return offeringRepository.findAllByPersonChurchId(church.getId())
                 .stream()
                 .map(offering -> {
@@ -76,38 +77,11 @@ public class OfferingController {
                 .toList();
     }
 
-    // ← requireChurch() eliminado
+    // ← OfferingResponse eliminado, ahora vive en com.iglesia.dto
 
     public record OfferingRequest(
             @NotNull Long personId,
             @NotNull BigDecimal amount,
             @NotBlank String concept
     ) {}
-
-    public record OfferingResponse(
-            Long id,
-            Long personId,
-            String personName,
-            String concept,
-            String amount,
-            String status,
-            Long paymentId,
-            String paymentStatus
-    ) {
-        public static OfferingResponse from(Offering offering, Payment payment) {
-            String personName = offering.getPerson().getFirstName()
-                    + " " + offering.getPerson().getLastName();
-            String paymentStatus = payment == null ? null : payment.getStatus().name();
-            return new OfferingResponse(
-                    offering.getId(),
-                    offering.getPerson().getId(),
-                    personName,
-                    offering.getConcept(),
-                    offering.getAmount().toPlainString(),
-                    offering.getStatus().name(),
-                    offering.getPaymentId(),
-                    paymentStatus
-            );
-        }
-    }
 }
